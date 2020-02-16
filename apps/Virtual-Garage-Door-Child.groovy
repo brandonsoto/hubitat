@@ -33,6 +33,9 @@ preferences {
 		title: "Garage Door Actuator Switch",
             required: true
 	}
+    section("Garage door actuator off delay"){
+        input "actuatorSwitchDelay", "number", title: "Turns off the switch after X seconds", defaultValue: 2, required: true
+	}
 	
     section("Garage door multisensor"){
         input "contactSensor", "capability.contactSensor",
@@ -139,11 +142,16 @@ def garageSwitchHandler(evt) {
 }
 
 def actuatorHandler(evt) {
-    // TODO: allow Google Home/Alexa to open/close garage door
     log.debug "actuatorHandler($evt), current_state: $state.current"
 }
 
 private triggerActuator() {
     log.debug "triggerActuator()"
     actuatorSwitch.on()
+    runIn(actuatorSwitchDelay, 'actuatorDelayOff')
+}
+
+private actuatorDelayOff() {
+    log.debug "actuatorDelayOff"
+    actuatorSwitch.off()
 }

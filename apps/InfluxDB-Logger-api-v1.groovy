@@ -26,6 +26,7 @@
  *   Date       Name		Change 
  *   2019-02-02 Dan Ogorchock	Use asynchttpPost() instead of httpPost() call
  *   2019-09-09 Caleb Morse     Support deferring writes and doing buld writes to influxdb
+ *   2020-02-15 Brandon Soto    Support for soft-polling attribute whitelist
  *****************************************************************************************************************/
 definition(
     name: "InfluxDB Logger",
@@ -120,6 +121,67 @@ preferences {
         input "volts", "capability.voltageMeasurement", title: "Voltage Meters", multiple: true, required: false
         input "waterSensors", "capability.waterSensor", title: "Water Sensors", multiple: true, required: false
         input "windowShades", "capability.windowShade", title: "Window Shades", multiple: true, required: false
+    }
+
+    section("Soft-Polling Attributes:") {
+        input "whitelist", "enum", title: "Attributes to be used with soft-polling", required: false, multiple: true, options: [
+                "acceleration",
+                "alarm",
+                "battery",
+                "button",
+                "carbonDioxide",
+                "carbonMonoxide",
+                "color",
+                "consumableStatus",
+                "contact",
+                "coolingSetpoint",
+                "current",
+                "door",
+                "energy",
+                "goal",
+                "heatingSetpoint",
+                "hue",
+                "humidity",
+                "illuminance",
+                "level",
+                "level",
+                "lock",
+                "lqi",
+                "motion",
+                "mute",
+                "optimisation",
+                "pH",
+                "power",
+                "powerFactor",
+                "pressure",
+                "rssi",
+                "saturation",
+                "scheduledSetpoint",
+                "shock",
+                "sleeping",
+                "smoke",
+                "sound",
+                "soundPressureLevel",
+                "status",
+                "steps",
+                "switch",
+                "tamper",
+                "temperature",
+                "thermostatFanMode",
+                "thermostatMode",
+                "thermostatOperatingState",
+                "thermostatSetpoint",
+                "thermostatSetpointMode",
+                "threeAxis",
+                "touch",
+                "trackData",
+                "trackDescription",
+                "ultravioletIndex",
+                "voltage",
+                "voltage",
+                "water",
+                "windowFunction",
+                "windowShade"]
     }
 
 }
@@ -228,6 +290,9 @@ def updated() {
     state.deviceAttributes << [ devices: 'volts', attributes: ['voltage']]
     state.deviceAttributes << [ devices: 'waterSensors', attributes: ['water']]
     state.deviceAttributes << [ devices: 'windowShades', attributes: ['windowShade']]
+
+    state.softPollWhitelist = settings.whitelist
+    logger("updated(): whitelist=${state.softPollWhitelist}", "info")
 
     // Configure Scheduling:
     state.softPollingInterval = settings.prefSoftPollingInterval.toInteger()
@@ -522,7 +587,8 @@ def softPoll() {
         if (devs && (da.attributes)) {
             devs.each { d ->
                 da.attributes.each { attr ->
-                    if (d.hasAttribute(attr) && d.latestState(attr)?.value != null) {
+                    def whitelisted = attr in state.softPollWhitelist
+                    if (whitelisted && d.hasAttribute(attr) && d.latestState(attr)?.value != null) {
                         logger("softPoll(): Softpolling device ${d} for attribute: ${attr}","info")
                         // Send fake event to handleEvent():
                         handleEvent([

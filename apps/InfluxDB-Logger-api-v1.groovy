@@ -406,7 +406,7 @@ def handleEvent(evt) {
     else if ('contact' == evt.name) { // contact: Calculate a binary value (closed = 1, open = 0)
         unit = 'contact'
         value = '"' + value + '"'
-        valueBinary = ('closed' == evt.value) ? '1i' : '0i'
+        valueBinary = ('closed' == evt.value) ? '0i' : '1i'
         data += ",unit=${unit} value=${value},valueBinary=${valueBinary}"
     }
     else if ('door' == evt.name) { // door: Calculate a binary value (closed = 1, open/opening/closing/unknown = 0)

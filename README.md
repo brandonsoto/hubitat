@@ -1,3 +1,2 @@
-# Hubitat
-
-Drivers and apps to use with Hubitat
+# hubitat
+Apps, drivers, and scripts to use alongside Hubitat

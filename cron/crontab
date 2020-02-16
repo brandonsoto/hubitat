@@ -25,5 +25,5 @@
 # m h  dom mon dow   command
 
 */20 * * * * hubitat_response_time.py --hub-url="http://<HUBITAT_URL>" --influx-url="http://<INFLUX_URL>
-0 3 * * * hubitat_backup.py --backup-url="http://<HUBITAT_URL>/hub/backupDB?fileName=latest" --backup-dir="<BACKUP_DIR>"
+0 3 * * * hubitat_backup.sh
 

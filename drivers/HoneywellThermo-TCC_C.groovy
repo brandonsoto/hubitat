@@ -13,7 +13,8 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- * brandonsoto: v1.3.21 Fix incorrect value used for "emergency/auxilary" heat. Based on HoneywellHome VisionPRO® 8000 with RedLINK® (TH8320R1003)
+ * brandonsoto: v1.3.21 Fix incorrect value used for "emergency/auxilary" heat. Based on HoneywellHome VisionPRO® 8000 with RedLINK® (TH8320R1003).
+                        Also remove "auto" thermostat mode as it's unsupported by TH8320R1003.
  * csteele: v1.3.20  Added "emergency/auxiliary" heat.
  *                    added fanOperatingState Attribute.
  * csteele: v1.3.19  FollowSchedule typo.
@@ -271,10 +272,6 @@ def off() {
 	setThermostatMode('off')
 }
 
-def auto() {
-	setThermostatMode('auto')
-}
-
 def heat() {
 	setThermostatMode('heat')
 }
@@ -291,7 +288,7 @@ def emergencyHeat() {
 }
 
 def setThermostatMode(mode) {
-	Map modeMap = [auto:5, cool:3, heat:1, off:2, 'emergency heat':4]
+	Map modeMap = [cool:3, heat:1, off:2, 'emergency heat':0]
 	if (debugOutput) log.debug "setThermostatMode: $mode"
 	deviceDataInit(null) 	 // reset all params, then set individually
 
@@ -527,7 +524,7 @@ def getStatusHandler(resp, data) {
 	n = [ 0: 'auto', 2: 'circulate', 1: 'on', 3: 'followSchedule' ][fanMode]
 	sendEvent(name: 'thermostatFanMode', value: n)
 
-	n = [ 0: 'emergency heat', 1: 'heat', 2: 'off', 3: 'cool', 5: 'auto' ][switchPos] ?: 'unknown'
+	n = [ 0: 'emergency heat', 1: 'heat', 2: 'off', 3: 'cool'][switchPos] ?: 'off'
 	sendEvent(name: 'temperature', value: curTemp, state: n, unit:device.data.unit)
 	sendEvent(name: 'thermostatMode', value: n)
 	lrM(n)

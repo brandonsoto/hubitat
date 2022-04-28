@@ -3,7 +3,7 @@
  *
  *  Total Comfort API
  *   
- *  Based on Code by Eric Thomas, Edited by Bob Jase, and C Steele
+ *  Based on Code by Eric Thomas, Edited by Bob Jase, C Steele, and Brandon Soto
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -13,8 +13,10 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- * brandonsoto: v1.3.21 Fix incorrect value used for "emergency/auxilary" heat. Based on HoneywellHome VisionPRO® 8000 with RedLINK® (TH8320R1003).
-                        Also remove "auto" thermostat mode as it's unsupported by TH8320R1003.
+ * brandonsoto: v1.3.21 Fix incorrect value used for "emergency/auxilary" heat.
+                        Fix issue where isEmergencyHeatAllowed would always return "null".
+                        Remove "auto" thermostat mode as it's unsupported.
+                        Changes based on HoneywellHome VisionPRO® 8000 with RedLINK® (TH8320R1003).
  * csteele: v1.3.20  Added "emergency/auxiliary" heat.
  *                    added fanOperatingState Attribute.
  * csteele: v1.3.19  FollowSchedule typo.
@@ -89,7 +91,7 @@
  public static String tccSite() 	{  return "mytotalconnectcomfort.com"  }
 
 metadata {
-    definition (name: "Total Comfort API C", namespace: "csteele", author: "Eric Thomas, lg kahn, C Steele", importUrl: "https://raw.githubusercontent.com/HubitatCommunity/HoneywellThermo-TCC/master/HoneywellThermo-TCC_C.groovy") {
+    definition (name: "Total Comfort API TH8320R1003", namespace: "csteele", author: "Eric Thomas, lg kahn, C Steele, Brandon Soto", importUrl: "https://raw.githubusercontent.com/brandonsoto/hubitat/master/drivers/HoneywellThermo-TCC_TH8320R1003.groovy") {
         capability "Polling"
         capability "Thermostat"
         capability "Refresh"
@@ -272,6 +274,10 @@ def off() {
 	setThermostatMode('off')
 }
 
+def auto() {
+    log.warn "\"auto\" thermostat mode is not supported"
+}
+
 def heat() {
 	setThermostatMode('heat')
 }
@@ -281,9 +287,11 @@ def cool() {
 }
 
 def emergencyHeat() {
-	if (isEmergencyHeatAllowed) {
+	if (state.isEmergencyHeatAllowed) {
 		if (debugOutput) log.debug "Set Emergency/Auxiliary Heat On"
 		setThermostatMode('emergency heat')
+	} else {
+		log.warn "Emergency/Auxiliary Heat is not allowed at this time"
 	}
 }
 
@@ -461,9 +469,9 @@ def getStatusHandler(resp, data) {
 	def holdTime = setStatusResult.latestData.uiData.TemporaryHoldUntilTime
 	def vacationHoldMode = setStatusResult.latestData.uiData.IsInVacationHoldMode
 	def vacationHold = setStatusResult.latestData.uiData.VacationHold
-	def Boolean isEmergencyHeatAllowed = setStatusResult.latestData.uiData.SwitchEmergencyHeatAllowed
 	device.data.unit = "°${location.temperatureScale}" //
 
+	state.isEmergencyHeatAllowed = setStatusResult.latestData.uiData.SwitchEmergencyHeatAllowed
 	state.heatLowerSetptLimit = setStatusResult.latestData.uiData.HeatLowerSetptLimit 
 	state.heatUpperSetptLimit = setStatusResult.latestData.uiData.HeatUpperSetptLimit 
 	state.coolLowerSetptLimit = setStatusResult.latestData.uiData.CoolLowerSetptLimit 
@@ -475,7 +483,7 @@ def getStatusHandler(resp, data) {
 	if (debugOutput) log.debug "got holdTime = $holdTime"
 	if (debugOutput) log.debug "got Vacation Hold = $vacationHoldMode"
 	if (debugOutput) log.debug "got scheduleCapable = $isScheduleCapable"
-	if (debugOutput) log.debug "got Emergency Heat = $isEmergencyHeatAllowed"
+	if (debugOutput) log.debug "got Emergency Heat = ${state.isEmergencyHeatAllowed}"
 	
 	if (holdTime != 0) {
 	    if (debugOutput) log.debug "sending temporary hold"

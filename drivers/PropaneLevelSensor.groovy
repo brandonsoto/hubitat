@@ -21,7 +21,7 @@
 // SOFTWARE.
 
 metadata {
-    definition (name: "Propane Level Sensor", namespace: "bsoto", author: "Brandon Soto", importUrl: "") {
+    definition (name: "Propane Level Sensor", namespace: "bsoto", author: "Brandon Soto", importUrl: "https://raw.githubusercontent.com/brandonsoto/hubitat/master/drivers/PropaneLevelSensor.groovy") {
         capability "Battery"
         command "setPropaneLevel", [[name: "Propane Level",type:"NUMBER", description: "The propane tank's level"]]
     }
@@ -30,7 +30,6 @@ metadata {
 def setPropaneLevel(level) {
     if (level >= 0) {
         log.info "Setting propane level to $level"
-        state.level = level
         sendEvent(name: "battery", value: level, isStateChange: true)
     } else {
         log.warn "Invalid level - $level"

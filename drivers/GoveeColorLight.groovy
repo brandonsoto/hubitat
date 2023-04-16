@@ -107,6 +107,7 @@ def setColor(Map colormap) {
 // hue required (NUMBER) - Color Hue (0 to 100)
 def setHue(Number hue) {
     log.info "Setting hue to $hue"
+    // TODO: should we assume command suceeds and wait for response?
     parent.setHue(device.deviceNetworkId, hue)
 }
 

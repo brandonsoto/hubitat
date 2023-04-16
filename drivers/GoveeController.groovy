@@ -228,13 +228,25 @@ def parse(String description) {
             }
         }
 
-        def brightnessLevel = msg.data.brightness
+        def brightnessLevel = msg.data.level
         if (brightnessLevel != null) {
+            // TODO: validate values
             childDevice.sendEvent(name: "level", value: brightnessLevel)
         }
 
-        // TODO: parse colorwc portion
+        def color = msg.data.color
+        if (color != null) {
+            // TODO: validate values
+            def hsv = hubitat.helper.ColorUtils.rgbToHSV([color.r, color.g, color.b])
+            childDevice.sendEvent(name: "hue", value: hsv[0])
+            childDevice.sendEvent(name: "saturation", value: hsv[1])
+        }
 
+        def colorTemp = msg.data.colorTemInKelvin
+        if (color != null) {
+            // TODO: validate values
+            childDevice.sendEvent(name: "colorTemperature", value: colorTemp)
+        }
     }  catch(e) {
         log.error("Failed to parse json e = ${e}")
         return
@@ -260,45 +272,44 @@ def turnOff(String deviceId) {
 
 // level required (NUMBER) - Level to set (0 to 100)
 def setLevel(String deviceId, Number level) {
-    sendMsg('{"msg":{"cmd":"brightness", "data":' + level + ', "deviceId": "'+ deviceId + '"}}')
+    sendMsg('{"msg":{"cmd":"level", "data":' + level + ', "deviceId": "'+ deviceId + '"}}')
 }
 
 // colortemperature required (NUMBER) - Color temperature in degrees Kelvin (1-30,000)
 def setColorTemperature(String deviceId, Number temperature) {
-    log.info "Setting color temperature to temperature=$temperature"
+    setColorTemperature(deviceId, temperature, device.currentValue("switchLevel"))
 }
 
 // colortemperature required (NUMBER) - Color temperature in degrees Kelvin (1-30,000)
 // level optional (NUMBER) - level to set
 def setColorTemperature(String deviceId, Number temperature, Number level) {
-    log.info "Setting color temperature to temperature=$temperature, level=$level"
-    // if (level >= 0 && level <= 100) { }
+    log.info "Setting color temperature=$temperature, level=$level"
+    sendMsg('{"msg":{"cmd":"colorTemp", "data":{"level":' + level + ', "colorTemInKelvin":' + temperature + '}, "deviceId": "'+ deviceId + '"}}')
 }
 
-// colortemperature required (NUMBER) - Color temperature in degrees Kelvin (1-30,000)
+// temperature required (NUMBER) - Color temperature in degrees Kelvin (1-30,000)
 // level optional (NUMBER) - level to set
-// transitionTime optional (NUMBER) - transition time to use in seconds
+// transitionTime optional (NUMBER) - transition time to use in seconds (NOTE: This value is ignored)
 def setColorTemperature(String deviceId, Number temperature, Number level, Number transitionTime) {
-    log.info "Setting color temperature to temperature=$temperature, level=$level, transitionTime=$transitionTime"
-    // if (level >= 0 && level <= 100) { }
-    // if (transitionTime >= 0) { }
+    setColorTemperature(deviceId, temperature, level)
 }
 
 // - Color map settings [hue*:(0 to 100), saturation*:(0 to 100), level:(0 to 100)]
 def setColor(String deviceId, Map colormap) {
     log.info "Setting color to $colormap"
+    def rgbColor = hubitat.helper.ColorUtils.hsvToRGB(colorMap)
+    log.info "Setting color to $colormap (rgb=$rgbColor)"
+    sendMsg('{"msg":{"cmd":"color", "data":{"r"' + rgbColor[0] + ', "g":' + rgbColor[1] + ', "b":' + rgbColor[2] + '}, "deviceId": "'+ deviceId + '"}}')
 }
 
 // hue required (NUMBER) - Color Hue (0 to 100)
 def setHue(String deviceId, Number hue) {
-    log.info "Setting hue to $hue"
-    // if (hue >= 0 && hue <= 100) { }
+    setColor(deviceid, ["hue": hue, "saturation": device.currentValue("saturation"), "level": device.currentValue("switchLevel")])
 }
 
 // saturation required (NUMBER) - Color Saturation (0 to 100)
 def setSaturation(String deviceId, Number saturation) {
-    log.info "Setting saturation to $saturation"
-    // if (saturation >= 0 && saturation <= 100) { }
+    setColor(deviceid, ["hue": device.currentValue("hue"), "saturation": saturation, "level": device.currentValue("switchLevel")])
 }
 
 def getDeviceStatus(String deviceId) {
@@ -307,7 +318,7 @@ def getDeviceStatus(String deviceId) {
 }
 
 private def sendMsg(String message) {
-    log.debug "sendMsg: $message"
+    logDebug("sendMsg: $message")
     try {
         interfaces.webSocket.sendMessage(message)
     } catch (e) {
@@ -327,6 +338,12 @@ private def setWasExpectedClose(boolean wasExpected)
     logDebug("setWasExpectedClose: $wasExpected")
     state.wasExpectedClose = wasExpected
 }
+
+// private def getWasExpectedClose() {
+//     synchronized(this) {
+//         return state.wasExpectedClose
+//     }
+// }
 
 private def createChildDevice(String deviceId) {
     log.info "Creating Govee color light device for $deviceId"

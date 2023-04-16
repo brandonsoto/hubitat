@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 import jsonschema
 import websockets
-from govee_led_wez import GoveeController, GoveeDevice
+from govee_led_wez import GoveeController, GoveeDevice, GoveeColor
 
 _LOG_FORMAT = '%(asctime)s %(name)s %(levelname)s: %(message)s'
 
@@ -16,23 +16,24 @@ _LOG_FORMAT = '%(asctime)s %(name)s %(levelname)s: %(message)s'
 _SERVER_ADDR = "0.0.0.0"  # Default address for the Govee server
 _SERVER_PORT = 4245  # Default port for the Govee server
 _LAN_CONTROL_TIMEOUT_SECONDS = 5  # Default timeout for Govee LAN commands (in seconds)
-_LAN_SCAN_INTERVAL_SECONDS = 15.0  # Default interval for scanning Govee LAN devices (in seconds)
+_LAN_SCAN_INTERVAL_SECONDS = 60.0  # Default interval for scanning Govee LAN devices (in seconds)
 _BLE_SCAN_INTERVAL_SECONDS = 600  # Default interval for scanning Govee BLE devices (in seconds)
 _BLE_IDLE_TIMEOUT_SECONDS = 60  # Default idle timeout for Govee BLE devices (in seconds)
 _HTTP_SCAN_INTERVAL_SECONDS = 600  # Default interval for scanning Govee HTTP devices (in seconds)
 
-# Server commands
+# Server commands (See _SERVER_JSON_SCHEMA for details)
 _CMD_GET_DEVICES = "getDevices"  # Get all device IDs
 _CMD_GET_DEV_STATUS = "devStatus"  # Get a device's state
-_CMD_SET_BRIGHTNESS = "brightness"  # Control a device's brightness
-_CMD_SET_COLOR = "colorwc"  # Control a device's color temperature
+_CMD_SET_BRIGHTNESS = "level"  # Control a device's brightness level
+_CMD_SET_COLOR_TEMP = "colorTemp"  # Control a device's color temperature
+_CMD_SET_COLOR = "color"  # Control a device's RGB color
 _CMD_SET_POWER = "onOff"  # Control a device's power status
 
 # Server command arguments
-_ARG_DEV_ID = "deviceId"
 _ARG_CMD = "command"
 _ARG_DATA = "data"
-_ARG_VALUE = "value"
+_ARG_DEV_ID = "deviceId"
+_ARG_ROOT = "msg"
 
 _GOVEE_CONTROLLER = GoveeController()
 
@@ -43,8 +44,8 @@ _SERVER_JSON_SCHEMA = {
             "type": "object",
             "properties": {
                 "cmd": {"type": "string",
-                        "enum": [_CMD_GET_DEV_STATUS, _CMD_SET_POWER, _CMD_SET_BRIGHTNESS, _CMD_SET_COLOR,
-                                 _CMD_GET_DEVICES]},
+                        "enum": [_CMD_GET_DEV_STATUS, _CMD_SET_POWER, _CMD_SET_BRIGHTNESS, _CMD_SET_COLOR_TEMP,
+                                 _CMD_SET_COLOR, _CMD_GET_DEVICES]},
             },
             "required": ["cmd"],
             "allOf": [
@@ -76,14 +77,7 @@ _SERVER_JSON_SCHEMA = {
                     },
                     "then": {
                         "properties": {
-                            _ARG_DATA: {
-                                # "type": "object",
-                                # "properties": {_ARG_VALUE: {"type": "integer", "minimum": 0, "maximum": 1}},
-                                # "required": [_ARG_VALUE]
-                                "type": "integer",
-                                "minimum": 0,
-                                "maximum": 1
-                            },
+                            _ARG_DATA: {"type": "integer", "minimum": 0, "maximum": 1},
                             _ARG_DEV_ID: {"type": "string"},
                         },
                         "required": [_ARG_DATA, _ARG_DEV_ID],
@@ -96,13 +90,26 @@ _SERVER_JSON_SCHEMA = {
                     },
                     "then": {
                         "properties": {
+                            _ARG_DATA: {"type": "integer", "minimum": 0, "maximum": 100},
+                            _ARG_DEV_ID: {"type": "string"},
+                        },
+                        "required": [_ARG_DATA, _ARG_DEV_ID],
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {"cmd": {"const": _CMD_SET_COLOR_TEMP}},
+                        "required": ["cmd"],
+                    },
+                    "then": {
+                        "properties": {
                             _ARG_DATA: {
-                                # "type": "object",
-                                # "properties": {_ARG_VALUE: {"type": "integer", "minimum": 0, "maximum": 100}},
-                                # "required": [_ARG_VALUE]
-                                "type": "integer",
-                                "minimum": 0,
-                                "maximum": 100
+                                "type": "object",
+                                "properties": {
+                                    "level": {"type": "integer", "minimum": 0, "maximum": 100},
+                                    "colorTemInKelvin": {"type": "integer", "minimum": 0, "maximum": 30000}
+                                },
+                                "required": ["level", "colorTemInKelvin"]
                             },
                             _ARG_DEV_ID: {"type": "string"},
                         },
@@ -119,18 +126,11 @@ _SERVER_JSON_SCHEMA = {
                             _ARG_DATA: {
                                 "type": "object",
                                 "properties": {
-                                    "color": {
-                                        "type": "object",
-                                        "properties": {
-                                            "r": {"type": "integer", "minimum": 0, "maximum": 255},
-                                            "g": {"type": "integer", "minimum": 0, "maximum": 255},
-                                            "b": {"type": "integer", "minimum": 0, "maximum": 255},
-                                        },
-                                        "required": ["r", "g", "b"]
-                                    },
-                                    "colorTemInKelvin": {"type": "integer", "minimum": 0}
+                                    "r": {"type": "integer", "minimum": 0, "maximum": 255},
+                                    "g": {"type": "integer", "minimum": 0, "maximum": 255},
+                                    "b": {"type": "integer", "minimum": 0, "maximum": 255},
                                 },
-                                "required": ["color", "colorTemInKelvin"]
+                                "required": ["r", "g", "b"]
                             },
                             _ARG_DEV_ID: {"type": "string"},
                         },
@@ -158,7 +158,6 @@ class ServerConfig:
 
 
 def error_to_json(error: str) -> bytes:
-    # TODO: need to add device id
     return json.dumps({'msg': {'error': error}}).encode('utf-8')
 
 
@@ -201,23 +200,14 @@ async def reply_to(msg: dict, websocket: websockets.WebSocketServer):
         logging.debug(f"Getting device status for {device_id}")
         await _GOVEE_CONTROLLER.update_device_state(device)
     elif command == _CMD_SET_POWER:
-        value: int = data  #_ARG_VALUE]
-        await _GOVEE_CONTROLLER.set_power_state(device, value > 0)
+        await _GOVEE_CONTROLLER.set_power_state(device, data > 0)
     elif command == _CMD_SET_BRIGHTNESS:
-        value: int = data  # [_ARG_VALUE]
-        await _GOVEE_CONTROLLER.set_brightness(device, value)
-    # TODO: color commands need to be separate for color and temp
+        await _GOVEE_CONTROLLER.set_brightness(device, data)
+    elif command == _CMD_SET_COLOR_TEMP:
+        await _GOVEE_CONTROLLER.set_color_temperature(device, data['colorTemInKelvin'])
+        await _GOVEE_CONTROLLER.set_brightness(device, data['level'])
     elif command == _CMD_SET_COLOR:
-        # TODO: to be implemented
-        pass
-        # color: dict = data['color']
-        # color_temp: int = data['colorTemInKelvin']
-        # red: int = color.get('r') or 0
-        # green: int = color.get('g') or 0
-        # blue: int = color.get('b') or 0
-        # await _GOVEE_CONTROLLER.set_color(device, GoveeColor(red, green, blue))
-        # await _GOVEE_CONTROLLER.set_color_temperature(device, color_temp)
-        # await websocket.send(json.dumps(to_json_object(device)).encode('utf-8'))
+        await _GOVEE_CONTROLLER.set_color(device, GoveeColor(data['r'], data['g'], data['b']))
     else:
         await websocket.send(b'{"error": "invalid command"}')
         return
@@ -271,6 +261,7 @@ async def run_govee_controller(config: ServerConfig):
     logging.debug("Starting Govee controller...")
     try:
         _GOVEE_CONTROLLER.set_device_control_timeout(config.lan_control_timeout_sec)
+        # _GOVEE_CONTROLLER.set_device_change_callback() # TODO: create callback to send update to Hubitat
         _GOVEE_CONTROLLER.start_lan_poller(interfaces=[config.lan_poller_address],
                                            interval=config.lan_poll_interval_sec)
         if config.api_key:

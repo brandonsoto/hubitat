@@ -238,12 +238,14 @@ def parse(String description) {
         if (color != null) {
             // TODO: validate values
             def hsv = hubitat.helper.ColorUtils.rgbToHSV([color.r, color.g, color.b])
+            logDebug("setting hsv to $hsv")
             childDevice.sendEvent(name: "hue", value: hsv[0])
             childDevice.sendEvent(name: "saturation", value: hsv[1])
         }
 
         def colorTemp = msg.data.colorTemInKelvin
-        if (color != null) {
+        if (colorTemp != null) {
+            logDebug("setting color temp to $colorTemp")
             // TODO: validate values
             childDevice.sendEvent(name: "colorTemperature", value: colorTemp)
         }
@@ -277,7 +279,7 @@ def setLevel(String deviceId, Number level) {
 
 // colortemperature required (NUMBER) - Color temperature in degrees Kelvin (1-30,000)
 def setColorTemperature(String deviceId, Number temperature) {
-    setColorTemperature(deviceId, temperature, device.currentValue("switchLevel"))
+    setColorTemperature(deviceId, temperature, device.currentValue("level"))
 }
 
 // colortemperature required (NUMBER) - Color temperature in degrees Kelvin (1-30,000)
@@ -297,19 +299,21 @@ def setColorTemperature(String deviceId, Number temperature, Number level, Numbe
 // - Color map settings [hue*:(0 to 100), saturation*:(0 to 100), level:(0 to 100)]
 def setColor(String deviceId, Map colormap) {
     log.info "Setting color to $colormap"
-    def rgbColor = hubitat.helper.ColorUtils.hsvToRGB(colorMap)
-    log.info "Setting color to $colormap (rgb=$rgbColor)"
-    sendMsg('{"msg":{"cmd":"color", "data":{"r"' + rgbColor[0] + ', "g":' + rgbColor[1] + ', "b":' + rgbColor[2] + '}, "deviceId": "'+ deviceId + '"}}')
+    def hsv = [colormap.hue, colormap.saturation, colormap.level]
+    logDebug("Setting color to hsv = $hsv")
+    def rgbColor = hubitat.helper.ColorUtils.hsvToRGB(hsv)
+    logDebug("Setting color to $colormap (rgb=$rgbColor)")
+    sendMsg('{"msg":{"cmd":"color", "data":{"r":' + rgbColor[0] + ', "g":' + rgbColor[1] + ', "b":' + rgbColor[2] + '}, "deviceId": "'+ deviceId + '"}}')
 }
 
 // hue required (NUMBER) - Color Hue (0 to 100)
 def setHue(String deviceId, Number hue) {
-    setColor(deviceid, ["hue": hue, "saturation": device.currentValue("saturation"), "level": device.currentValue("switchLevel")])
+    setColor(deviceid, ["hue": hue, "saturation": device.currentValue("saturation"), "level": device.currentValue("level")])
 }
 
 // saturation required (NUMBER) - Color Saturation (0 to 100)
 def setSaturation(String deviceId, Number saturation) {
-    setColor(deviceid, ["hue": device.currentValue("hue"), "saturation": saturation, "level": device.currentValue("switchLevel")])
+    setColor(deviceid, ["hue": device.currentValue("hue"), "saturation": saturation, "level": device.currentValue("level")])
 }
 
 def getDeviceStatus(String deviceId) {

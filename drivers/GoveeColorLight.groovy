@@ -79,15 +79,13 @@ def refresh() {
 
 // colortemperature required (NUMBER) - Color temperature in degrees Kelvin (1-30,000)
 def setColorTemperature(Number temperature) {
-    log.info "Setting color temperature to temperature=$temperature"
-    parent.setColorTemperature(device.deviceNetworkId, temperature)
+    setColorTemperature(temperature, device.currentValue("level"), 0)
 }
 
 // colortemperature required (NUMBER) - Color temperature in degrees Kelvin (1-30,000)
 // level optional (NUMBER) - level to set
 def setColorTemperature(Number temperature, Number level) {
-    log.info "Setting color temperature to temperature=$temperature, level=$level"
-    parent.setColorTemperature(device.deviceNetworkId, temperature, level)
+    setColorTemperature(temperature, level, 0)
 }
 
 // colortemperature required (NUMBER) - Color temperature in degrees Kelvin (1-30,000)
@@ -95,6 +93,8 @@ def setColorTemperature(Number temperature, Number level) {
 // transitionTime optional (NUMBER) - transition time to use in seconds
 def setColorTemperature(Number temperature, Number level, Number transitionTime) {
     log.info "Setting color temperature to temperature=$temperature, level=$level, transitionTime=$transitionTime"
+    sendEvent(name: "level", value: level)
+    sendEvent(name: "colorTemperature", value: temperature)
     parent.setColorTemperature(device.deviceNetworkId, temperature, level)
 }
 
@@ -107,28 +107,32 @@ def setColor(Map colormap) {
 // hue required (NUMBER) - Color Hue (0 to 100)
 def setHue(Number hue) {
     log.info "Setting hue to $hue"
-    // TODO: should we assume command suceeds and wait for response?
+    sendEvent(name: "hue", value: hue)
     parent.setHue(device.deviceNetworkId, hue)
 }
 
 // saturation required (NUMBER) - Color Saturation (0 to 100)
 def setSaturation(Number saturation) {
     log.info "Setting saturation to $saturation"
+    sendEvent(name: "saturation", value: hue)
     parent.setSaturation(device.deviceNetworkId, saturation)
 }
 
 def on() {
     log.info "Turning light on"
+    sendEvent(name: "switch", value: "on")
     parent.turnOn(device.deviceNetworkId)
 }
 
 def off() {
     log.info "Turning light off"
+    sendEvent(name: "switch", value: "off")
     parent.turnOff(device.deviceNetworkId)
 }
 
 // level required (NUMBER) - Level to set (0 to 100)
 def setLevel(Number level) {
     log.info "Setting level to $level"
+    sendEvent(name: "level", value: level)
     parent.setLevel(device.deviceNetworkId, level)
 }

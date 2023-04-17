@@ -29,6 +29,8 @@ _CMD_SET_COLOR_TEMP = "colorTemp"  # Control a device's color temperature
 _CMD_SET_COLOR = "color"  # Control a device's RGB color
 _CMD_SET_POWER = "onOff"  # Control a device's power status
 
+_clients = set()
+
 # Server command arguments
 _ARG_CMD = "command"
 _ARG_DATA = "data"
@@ -184,13 +186,16 @@ async def reply_to(msg: dict, websocket: websockets.WebSocketServer):
     command = msg['msg']['cmd']
 
     if command == _CMD_GET_DEVICES:
+        # TODO: determine if we should fetch latest status
+        for device in _GOVEE_CONTROLLER.devices.values():
+            await _GOVEE_CONTROLLER.update_device_state(device)
         devices = list(_GOVEE_CONTROLLER.devices.keys())
         response = json.dumps({'msg': {'cmd': _CMD_GET_DEVICES, _ARG_DATA: devices}})
         logging.debug(f"get_devices: response={response}")
         await websocket.send(response.encode('utf-8'))
         return
 
-    device_id = msg['msg'][_ARG_DEV_ID]
+    device_id: str = msg['msg'][_ARG_DEV_ID]
     data = msg['msg'][_ARG_DATA]
     if (device := _GOVEE_CONTROLLER.get_device_by_id(device_id)) is None:
         logging.warning(f"No device id found for {msg['msg'][_ARG_DEV_ID]}")
@@ -207,6 +212,8 @@ async def reply_to(msg: dict, websocket: websockets.WebSocketServer):
         await _GOVEE_CONTROLLER.set_color_temperature(device, data['colorTemInKelvin'])
         await _GOVEE_CONTROLLER.set_brightness(device, data['level'])
     elif command == _CMD_SET_COLOR:
+        color: GoveeColor = GoveeColor(data['r'], data['g'], data['b'])
+        logging.debug(f"Setting color of {device_id} to {color}")
         await _GOVEE_CONTROLLER.set_color(device, GoveeColor(data['r'], data['g'], data['b']))
     else:
         await websocket.send(b'{"error": "invalid command"}')
@@ -230,6 +237,8 @@ async def handle_connection(websocket: websockets.WebSocketServer, path: str) ->
         logging.warning(f"Connection closed to {client_addr} due to invalid path - \"{path}\"")
         return
 
+    _clients.add(websocket)
+
     try:
         async for message in websocket:
             logging.debug(f"Received {message} from {client_addr}")
@@ -242,6 +251,7 @@ async def handle_connection(websocket: websockets.WebSocketServer, path: str) ->
                 await websocket.send(error_to_json(str(e)))
     finally:
         logging.warning(f"Disconnected from {client_addr}!")
+        _clients.remove(websocket)
 
 
 async def run_server(config: ServerConfig):
@@ -254,6 +264,17 @@ async def run_server(config: ServerConfig):
         await asyncio.Event().wait()  # run forever
 
 
+def device_changed(device: GoveeDevice):
+    response = to_json_object(device)
+    logging.debug(f"device_changed: response={response}, clients={_clients}")
+
+    async def send_device_state(socket: websockets.WebSocketServer):
+        await socket.send(json.dumps(response).encode('utf-8'))
+
+    for client in _clients:
+        asyncio.create_task(send_device_state(client))
+
+
 async def run_govee_controller(config: ServerConfig):
     """ Starts the Govee light controller
     :param config: the Govee controller's configuration
@@ -261,7 +282,7 @@ async def run_govee_controller(config: ServerConfig):
     logging.debug("Starting Govee controller...")
     try:
         _GOVEE_CONTROLLER.set_device_control_timeout(config.lan_control_timeout_sec)
-        # _GOVEE_CONTROLLER.set_device_change_callback() # TODO: create callback to send update to Hubitat
+        _GOVEE_CONTROLLER.set_device_change_callback(device_changed)
         _GOVEE_CONTROLLER.start_lan_poller(interfaces=[config.lan_poller_address],
                                            interval=config.lan_poll_interval_sec)
         if config.api_key:

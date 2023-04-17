@@ -1,0 +1,16 @@
+[Unit]
+Description=Govee Controller Server
+After=network.target
+
+[Service]
+ExecStart=/home/pi/.local/bin/pipenv run python3 server.py -v
+WorkingDirectory=/home/pi/Documents/govee-server/hubitat-master/scripts/govee
+StandardOutput=syslog
+StandardError=syslog
+Restart=always
+User=pi
+Group=pi
+Type=simple
+
+[Install]
+WantedBy=multi-user.target

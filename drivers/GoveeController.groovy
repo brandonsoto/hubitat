@@ -204,7 +204,7 @@ def parse(String description) {
             return
         }
 
-        log.debug "deviceId = ${msg.deviceId}"
+        logDebug("deviceId = ${msg.deviceId}")
 
         def deviceId = msg.deviceId
         if (deviceId == null) {
@@ -218,7 +218,7 @@ def parse(String description) {
             return
         }
 
-        log.debug "data = ${msg.data}"
+        logDebug("data = ${msg.data}")
         def onState = msg.data.onOff
         if (onState != null) {
             if (onState == 1) {
@@ -253,7 +253,6 @@ def parse(String description) {
         log.error("Failed to parse json e = ${e}")
         return
     }
-    log.debug "parse: done"
 }
 
 def refresh() {
@@ -300,9 +299,8 @@ def setColorTemperature(String deviceId, Number temperature, Number level, Numbe
 def setColor(String deviceId, Map colormap) {
     log.info "Setting color to $colormap"
     def hsv = [colormap.hue, colormap.saturation, colormap.level]
-    logDebug("Setting color to hsv = $hsv")
     def rgbColor = hubitat.helper.ColorUtils.hsvToRGB(hsv)
-    logDebug("Setting color to $colormap (rgb=$rgbColor)")
+    logDebug("Setting color: hsv=$hsv, rgb=$rgbColor")
     sendMsg('{"msg":{"cmd":"color", "data":{"r":' + rgbColor[0] + ', "g":' + rgbColor[1] + ', "b":' + rgbColor[2] + '}, "deviceId": "'+ deviceId + '"}}')
 }
 

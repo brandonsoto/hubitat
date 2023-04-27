@@ -185,43 +185,46 @@ async def reply_to(msg: dict, websocket: websockets.WebSocketServer):
     logging.debug(f"reply_to: {msg}")
     command = msg['msg']['cmd']
 
-    if command == _CMD_GET_DEVICES:
-        # TODO: determine if we should fetch latest status
-        for device in _GOVEE_CONTROLLER.devices.values():
+    try:
+        if command == _CMD_GET_DEVICES:
+            # TODO: determine if we should fetch latest status
+            for device in _GOVEE_CONTROLLER.devices.values():
+                await _GOVEE_CONTROLLER.update_device_state(device)
+            devices = list(_GOVEE_CONTROLLER.devices.keys())
+            response = json.dumps({'msg': {'cmd': _CMD_GET_DEVICES, _ARG_DATA: devices}})
+            logging.debug(f"get_devices: response={response}")
+            await websocket.send(response.encode('utf-8'))
+            return
+
+        device_id: str = msg['msg'][_ARG_DEV_ID]
+        data = msg['msg'][_ARG_DATA]
+        if (device := _GOVEE_CONTROLLER.get_device_by_id(device_id)) is None:
+            logging.warning(f"No device id found for {msg['msg'][_ARG_DEV_ID]}")
+            await websocket.send(error_to_json("Device not found"))
+            return
+        if command == _CMD_GET_DEV_STATUS:
+            logging.debug(f"Getting device status for {device_id}")
             await _GOVEE_CONTROLLER.update_device_state(device)
-        devices = list(_GOVEE_CONTROLLER.devices.keys())
-        response = json.dumps({'msg': {'cmd': _CMD_GET_DEVICES, _ARG_DATA: devices}})
-        logging.debug(f"get_devices: response={response}")
-        await websocket.send(response.encode('utf-8'))
-        return
+        elif command == _CMD_SET_POWER:
+            await _GOVEE_CONTROLLER.set_power_state(device, data > 0)
+        elif command == _CMD_SET_BRIGHTNESS:
+            await _GOVEE_CONTROLLER.set_brightness(device, data)
+        elif command == _CMD_SET_COLOR_TEMP:
+            await _GOVEE_CONTROLLER.set_color_temperature(device, data['colorTemInKelvin'])
+            await _GOVEE_CONTROLLER.set_brightness(device, data['level'])
+        elif command == _CMD_SET_COLOR:
+            color: GoveeColor = GoveeColor(data['r'], data['g'], data['b'])
+            logging.debug(f"Setting color of {device_id} to {color}")
+            await _GOVEE_CONTROLLER.set_color(device, GoveeColor(data['r'], data['g'], data['b']))
+        else:
+            await websocket.send(b'{"error": "invalid command"}')
+            return
 
-    device_id: str = msg['msg'][_ARG_DEV_ID]
-    data = msg['msg'][_ARG_DATA]
-    if (device := _GOVEE_CONTROLLER.get_device_by_id(device_id)) is None:
-        logging.warning(f"No device id found for {msg['msg'][_ARG_DEV_ID]}")
-        await websocket.send(error_to_json("Device not found"))
-        return
-    if command == _CMD_GET_DEV_STATUS:
-        logging.debug(f"Getting device status for {device_id}")
-        await _GOVEE_CONTROLLER.update_device_state(device)
-    elif command == _CMD_SET_POWER:
-        await _GOVEE_CONTROLLER.set_power_state(device, data > 0)
-    elif command == _CMD_SET_BRIGHTNESS:
-        await _GOVEE_CONTROLLER.set_brightness(device, data)
-    elif command == _CMD_SET_COLOR_TEMP:
-        await _GOVEE_CONTROLLER.set_color_temperature(device, data['colorTemInKelvin'])
-        await _GOVEE_CONTROLLER.set_brightness(device, data['level'])
-    elif command == _CMD_SET_COLOR:
-        color: GoveeColor = GoveeColor(data['r'], data['g'], data['b'])
-        logging.debug(f"Setting color of {device_id} to {color}")
-        await _GOVEE_CONTROLLER.set_color(device, GoveeColor(data['r'], data['g'], data['b']))
-    else:
-        await websocket.send(b'{"error": "invalid command"}')
-        return
-
-    response = to_json_object(device)
-    logging.debug(f"response={response}")
-    await websocket.send(json.dumps(to_json_object(device)).encode('utf-8'))
+        response = to_json_object(device)
+        logging.debug(f"response={response}")
+        await websocket.send(json.dumps(to_json_object(device)).encode('utf-8'))
+    except TimeoutError as e:
+        logging.warning(f"Command failed due to {e}")
 
 
 async def handle_connection(websocket: websockets.WebSocketServer, path: str) -> None:

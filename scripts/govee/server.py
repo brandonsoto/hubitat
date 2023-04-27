@@ -223,7 +223,7 @@ async def reply_to(msg: dict, websocket: websockets.WebSocketServer):
         response = to_json_object(device)
         logging.debug(f"response={response}")
         await websocket.send(json.dumps(to_json_object(device)).encode('utf-8'))
-    except TimeoutError as e:
+    except asyncio.exceptions.TimeoutError as e:
         logging.warning(f"Command failed due to {e}")
 
 

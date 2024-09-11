@@ -13,6 +13,8 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
+ * brandonsoto: v1.3.22 Add "auto" mode support and disable csteele update check.
+                        Changes based on HoneywellHome VisionPRO® 8000 with RedLINK® (TH8320R1003).
  * brandonsoto: v1.3.21 Fix incorrect value used for "emergency/auxilary" heat.
                         Fix issue where isEmergencyHeatAllowed would always return "null".
                         Remove "auto" thermostat mode as it's unsupported.
@@ -275,7 +277,7 @@ def off() {
 }
 
 def auto() {
-    log.warn "\"auto\" thermostat mode is not supported"
+    setThermostatMode('auto')
 }
 
 def heat() {
@@ -296,7 +298,7 @@ def emergencyHeat() {
 }
 
 def setThermostatMode(mode) {
-	Map modeMap = [cool:3, heat:1, off:2, 'emergency heat':0]
+	Map modeMap = [auto: 5, cool:3, heat:1, off:2, 'emergency heat':0]
 	if (debugOutput) log.debug "setThermostatMode: $mode"
 	deviceDataInit(null) 	 // reset all params, then set individually
 
@@ -532,7 +534,7 @@ def getStatusHandler(resp, data) {
 	n = [ 0: 'auto', 2: 'circulate', 1: 'on', 3: 'followSchedule' ][fanMode]
 	sendEvent(name: 'thermostatFanMode', value: n)
 
-	n = [ 0: 'emergency heat', 1: 'heat', 2: 'off', 3: 'cool'][switchPos] ?: 'off'
+	n = [ 0: 'emergency heat', 1: 'heat', 2: 'off', 3: 'cool', 5: 'auto'][switchPos] ?: 'off'
 	sendEvent(name: 'temperature', value: curTemp, state: n, unit:device.data.unit)
 	sendEvent(name: 'thermostatMode', value: n)
 	lrM(n)
@@ -885,8 +887,8 @@ def updated() {
     dbCleanUp()		// remove antique db entries created in older versions and no longer used.
     if (debugOutput) runIn(1800,logsOff)   
     if (setPermHold == "Permanent") { state.PermHold = 2 } else { state.PermHold = 1 }
-    schedule("0 0 8 ? * FRI *", updateCheck)  // Cron schedule - How often to perform the update check - (This example is 8am every Friday)
-    runIn(20, updateCheck) 
+    // schedule("0 0 8 ? * FRI *", updateCheck)  // Cron schedule - How often to perform the update check - (This example is 8am every Friday)
+    // runIn(20, updateCheck)
     if (debugOutput) log.debug "PermHold now = ${state.PermHold}"
     poll()
 }
